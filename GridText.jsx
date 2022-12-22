@@ -38,13 +38,60 @@ function main(thisObj) {
   // mainWin
   // ======
   var exeBtn = mainWin.add("button", undefined, undefined, { name: "exeBtn" });
-  exeBtn.text = "Excute";
+  exeBtn.text = "Execute";
 
   mainWin.onResize = function () {
     mainWin.layout.resize();
   }
 
   mainWin.layout.layout();
+
+  /**
+   * ポジションを設定する関数 ポジションにキーフレームがあればsetValueAtTimeを使って現在の時間にキーフレームを追加する
+   * @param {*} layer レイヤー
+   * @param {*} XYarray 配列[x, y, z]
+   */
+  function setPosition(layer, XYZarray) {
+    try {
+      var comp = app.project.activeItem;
+      var x = XYZarray[0]
+      var y = XYZarray[1]
+      var z = XYZarray[2]
+      var position = layer.property('ADBE Transform Group').property('ADBE Position')
+      if (!position.dimensionsSeparated) {
+        // 次元分割されていない場合
+        var numKey = position.numKeys
+        if (numKey == 0) {
+          position.setValue([x, y, z])
+        } else {
+          position.setValueAtTime(comp.time, [x, y, z])
+        }
+      } else {
+        // 次元分割されている場合
+        var positionX = layer.property('ADBE Transform Group').property('ADBE Position_0')
+        var positionY = layer.property('ADBE Transform Group').property('ADBE Position_1')
+        var positionZ = layer.property('ADBE Transform Group').property('ADBE Position_2')
+        var numKeyX = positionX.numKeys
+        var numKeyY = positionY.numKeys
+        var numKeyZ = positionZ.numKeys
+        if (numKeyX + numKeyY + numKeyZ == 0) {
+          layer.property("ADBE Transform Group").property("ADBE Position_0").setValue(x)
+          layer.property("ADBE Transform Group").property("ADBE Position_1").setValue(y)
+          if (layer.threeDLayer) {
+            layer.property("ADBE Transform Group").property("ADBE Position_2").setValue(z)
+          }
+        } else {
+          layer.property("ADBE Transform Group").property("ADBE Position_0").setValueAtTime(comp.time, x)
+          layer.property("ADBE Transform Group").property("ADBE Position_1").setValueAtTime(comp.time, y)
+          if (layer.threeDLayer) {
+            layer.property("ADBE Transform Group").property("ADBE Position_2").setValueAtTime(comp.time, z)
+          }
+        }
+      }
+    } catch (e) {
+      alert(e.message + e.line)
+    }
+  }
 
   exeBtn.onClick = function () {
     app.beginUndoGroup("grid text");
@@ -54,35 +101,13 @@ function main(thisObj) {
       for (var i = 0; i < selectedLayers.length; i++) {
         var selectedLayer = selectedLayers[i];
         var position = selectedLayer.property('ADBE Transform Group').property('ADBE Position')
-        var numKey = position.numKeys
         var x = (i % parseInt(columnNum.text)) * parseInt(spaceNum.text)
         var y = Math.floor(i / parseInt(columnNum.text)) * parseInt(spaceNum.text)
-        if (!position.dimensionsSeparated) {
-          // 次元分割されていない場合
-          if (numKey == 0) {
-            position.setValue([x, y, position.value[2]])
-          } else {
-            position.setValueAtTime(comp.time, [x, y, position.value[2]])
-          }
-        } else {
-          // 次元分割されている場合
-          if (numKey == 0) {
-            selectedLayer.property("ADBE Transform Group").property("ADBE Position_0").setValue(x)
-            selectedLayer.property("ADBE Transform Group").property("ADBE Position_1").setValue(y)
-            if (selectedLayer.threeDLayer) {
-              selectedLayer.property("ADBE Transform Group").property("ADBE Position_2").setValue(selectedLayer.property("ADBE Transform Group").property("ADBE Position_2").value)
-            }
-          } else {
-            selectedLayer.property("ADBE Transform Group").property("ADBE Position_0").setValueAtTime(comp.time, x)
-            selectedLayer.property("ADBE Transform Group").property("ADBE Position_1").setValueAtTime(comp.time, y)
-            if (selectedLayer.threeDLayer) {
-              selectedLayer.property("ADBE Transform Group").property("ADBE Position_2").setValueAtTime(comp.time, selectedLayer.property("ADBE Transform Group").property("ADBE Position_2").valueAtTime(comp.time, true))
-            }
-          }
-        }
+        // zは変更しないのでポジションの値をそのまま渡す
+        setPosition(selectedLayer, [x, y, position.value[2]])
       }
     } catch (e) {
-      alert(e)
+      alert(e.message + e.line)
     }
     app.endUndoGroup();
   }
